@@ -1,0 +1,487 @@
+<div id="mini-dodge-host"></div>
+
+<script>
+(() => {
+  const host = document.getElementById('mini-dodge-host');
+  if (!host) return;
+
+  const shadow = host.attachShadow({ mode: 'open' });
+
+  shadow.innerHTML = `
+    <style>
+      :host {
+        all: initial;
+        display: block;
+        width: 100%;
+        max-width: 720px;
+        margin: 20px auto;
+      }
+
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+
+      .game-wrap {
+        font-family: Arial, "Noto Sans KR", sans-serif;
+        width: 100%;
+        background: #111;
+        color: #eee;
+        border-radius: 16px;
+        overflow: hidden;
+        border: 1px solid #333;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      }
+
+      .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 14px;
+        background: #181818;
+        border-bottom: 1px solid #2a2a2a;
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .left-info {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        align-items: center;
+      }
+
+      .guide {
+        opacity: 0.85;
+      }
+
+      .score {
+        font-weight: 700;
+      }
+
+      .btn {
+        appearance: none;
+        border: 1px solid #444;
+        background: #222;
+        color: #fff;
+        border-radius: 10px;
+        padding: 8px 12px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background .15s ease, transform .1s ease;
+      }
+
+      .btn:hover {
+        background: #2b2b2b;
+      }
+
+      .btn:active {
+        transform: translateY(1px);
+      }
+
+      .btn-primary {
+        background: #2563eb;
+        border-color: #2563eb;
+      }
+
+      .btn-primary:hover {
+        background: #1d4ed8;
+      }
+
+      .canvas-wrap {
+        position: relative;
+        width: 100%;
+        height: 420px;
+        background: linear-gradient(to bottom, #111, #0b0b0b);
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        touch-action: none;
+      }
+
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0,0,0,0.58);
+        padding: 20px;
+        z-index: 3;
+      }
+
+      .overlay[hidden] {
+        display: none;
+      }
+
+      .panel {
+        width: 100%;
+        max-width: 360px;
+        background: rgba(20,20,20,0.96);
+        border: 1px solid #333;
+        border-radius: 18px;
+        padding: 22px 18px;
+        text-align: center;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+      }
+
+      .panel-title {
+        font-size: 22px;
+        font-weight: 700;
+        margin-bottom: 10px;
+        color: #fff;
+      }
+
+      .panel-desc {
+        font-size: 14px;
+        color: #cfcfcf;
+        line-height: 1.5;
+        margin-bottom: 16px;
+      }
+
+      .panel-score {
+        font-size: 15px;
+        color: #fff;
+        margin-bottom: 16px;
+        line-height: 1.7;
+      }
+
+      .panel-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+      }
+
+      .bottom-note {
+        padding: 10px 14px;
+        font-size: 12px;
+        color: #aaa;
+        background: #151515;
+        border-top: 1px solid #2a2a2a;
+      }
+
+      @media (max-width: 640px) {
+        .canvas-wrap {
+          height: 320px;
+        }
+
+        .topbar {
+          font-size: 13px;
+        }
+
+        .panel {
+          max-width: 100%;
+        }
+      }
+    </style>
+
+    <div class="game-wrap">
+      <div class="topbar">
+        <div class="left-info">
+          <div class="guide">← → / A D 이동 · 모바일은 드래그</div>
+          <div class="score" id="scoreText">Score: 0 | Best: 0</div>
+        </div>
+        <button class="btn" id="restartBtn" type="button">재시작</button>
+      </div>
+
+      <div class="canvas-wrap">
+        <canvas id="gameCanvas"></canvas>
+
+        <div class="overlay" id="startOverlay">
+          <div class="panel">
+            <div class="panel-title">피하기 게임</div>
+            <div class="panel-desc">
+              빨간 공을 피해 오래 버티면 점수가 올라간다.
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-primary" id="startBtn" type="button">게임 시작</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="overlay" id="gameOverOverlay" hidden>
+          <div class="panel">
+            <div class="panel-title">Game Over</div>
+            <div class="panel-score" id="finalScoreText">
+              이번 점수: 0<br>
+              최고 점수: 0
+            </div>
+            <div class="panel-actions">
+              <button class="btn btn-primary" id="restartFromOverlayBtn" type="button">다시 하기</button>
+              <button class="btn" id="shareBtn" type="button">공유하기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bottom-note">
+        빨간 공을 피하면 점수가 올라간다.
+      </div>
+    </div>
+  `;
+
+  const canvas = shadow.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const scoreText = shadow.getElementById('scoreText');
+  const restartBtn = shadow.getElementById('restartBtn');
+  const restartFromOverlayBtn = shadow.getElementById('restartFromOverlayBtn');
+  const startBtn = shadow.getElementById('startBtn');
+  const shareBtn = shadow.getElementById('shareBtn');
+  const canvasWrap = shadow.querySelector('.canvas-wrap');
+  const startOverlay = shadow.getElementById('startOverlay');
+  const gameOverOverlay = shadow.getElementById('gameOverOverlay');
+  const finalScoreText = shadow.getElementById('finalScoreText');
+
+  const state = {
+    width: 0,
+    height: 0,
+    running: false,
+    started: false,
+    score: 0,
+    best: 0,
+    time: 0,
+    player: { x: 0, y: 0, r: 14, vx: 0 },
+    rocks: [],
+    keys: new Set(),
+    dragging: false
+  };
+
+  function resizeCanvas() {
+    const rect = canvasWrap.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    state.width = rect.width;
+    state.height = rect.height;
+
+    if (!state.player.x) {
+      state.player.x = state.width / 2;
+      state.player.y = state.height * 0.8;
+    }
+  }
+
+  function updateScore() {
+    scoreText.textContent = 'Score: ' + Math.floor(state.score) + ' | Best: ' + state.best;
+  }
+
+  function showStartOverlay() {
+    startOverlay.hidden = false;
+    gameOverOverlay.hidden = true;
+  }
+
+  function hideStartOverlay() {
+    startOverlay.hidden = true;
+  }
+
+  function showGameOverOverlay() {
+    finalScoreText.innerHTML =
+      '이번 점수: ' + Math.floor(state.score) + '<br>최고 점수: ' + state.best;
+    gameOverOverlay.hidden = false;
+  }
+
+  function hideGameOverOverlay() {
+    gameOverOverlay.hidden = true;
+  }
+
+  function resetGame() {
+    state.running = true;
+    state.started = true;
+    state.score = 0;
+    state.time = 0;
+    state.rocks = [];
+    state.player.x = state.width / 2;
+    state.player.y = state.height * 0.8;
+    state.player.vx = 0;
+    hideStartOverlay();
+    hideGameOverOverlay();
+    updateScore();
+  }
+
+  function startGame() {
+    resetGame();
+  }
+
+  function endGame() {
+    state.running = false;
+    state.best = Math.max(state.best, Math.floor(state.score));
+    updateScore();
+    showGameOverOverlay();
+  }
+
+  function spawnRock() {
+    const r = 10 + Math.random() * 18;
+    state.rocks.push({
+      x: Math.random() * (state.width - r * 2) + r,
+      y: -r,
+      r,
+      vy: 140 + Math.random() * 200 + state.time * 1.2
+    });
+  }
+
+  function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
+  }
+
+  function update(dt) {
+    if (!state.running) return;
+
+    state.time += dt;
+
+    const spawnRate = 0.9 + Math.min(2.0, state.time / 10);
+    if (Math.random() < spawnRate * dt) {
+      spawnRock();
+    }
+
+    const left = state.keys.has('ArrowLeft') || state.keys.has('a') || state.keys.has('A');
+    const right = state.keys.has('ArrowRight') || state.keys.has('d') || state.keys.has('D');
+    const move = (right ? 1 : 0) - (left ? 1 : 0);
+
+    state.player.vx += move * 1200 * dt;
+    state.player.vx *= Math.pow(0.001, dt);
+    state.player.x += state.player.vx * dt;
+    state.player.x = clamp(state.player.x, state.player.r, state.width - state.player.r);
+
+    for (const rock of state.rocks) {
+      rock.y += rock.vy * dt;
+
+      const dx = rock.x - state.player.x;
+      const dy = rock.y - state.player.y;
+      const rr = rock.r + state.player.r;
+
+      if (dx * dx + dy * dy < rr * rr) {
+        endGame();
+        return;
+      }
+    }
+
+    state.rocks = state.rocks.filter(rock => rock.y < state.height + rock.r + 20);
+    state.score += dt * 10;
+    updateScore();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, state.width, state.height);
+
+    ctx.fillStyle = '#7cf';
+    ctx.beginPath();
+    ctx.arc(state.player.x, state.player.y, state.player.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    for (const rock of state.rocks) {
+      ctx.fillStyle = '#f66';
+      ctx.beginPath();
+      ctx.arc(rock.x, rock.y, rock.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.font = '12px Arial';
+    ctx.fillText('피하기 게임', 12, 20);
+
+    if (!state.started) {
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      ctx.font = '14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('시작 버튼을 눌러 게임을 시작해줘', state.width / 2, state.height / 2 + 90);
+      ctx.textAlign = 'start';
+    }
+  }
+
+  let lastTime = performance.now();
+
+  function loop(now) {
+    const dt = Math.min(0.033, (now - lastTime) / 1000);
+    lastTime = now;
+
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  async function shareGame() {
+    const score = Math.floor(state.score);
+    const shareText = '피하기 게임에서 ' + score + '점을 기록했어! 너도 도전해봐!';
+    const shareUrl = window.location.href;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: '피하기 게임',
+          text: shareText,
+          url: shareUrl
+        });
+        return;
+      }
+
+      await navigator.clipboard.writeText(shareText + ' ' + shareUrl);
+      alert('공유 문구와 링크를 복사했어.');
+    } catch (error) {
+      const temp = document.createElement('textarea');
+      temp.value = shareText + ' ' + shareUrl;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      document.body.removeChild(temp);
+      alert('공유 문구와 링크를 복사했어.');
+    }
+  }
+
+  window.addEventListener('resize', resizeCanvas);
+
+  document.addEventListener('keydown', (e) => {
+    state.keys.add(e.key);
+
+    if (!state.started && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      startGame();
+      return;
+    }
+
+    if (!state.running && state.started && e.key === ' ') {
+      e.preventDefault();
+      resetGame();
+    }
+  });
+
+  document.addEventListener('keyup', (e) => {
+    state.keys.delete(e.key);
+  });
+
+  canvas.addEventListener('pointerdown', (e) => {
+    state.dragging = true;
+    canvas.setPointerCapture(e.pointerId);
+  });
+
+  canvas.addEventListener('pointerup', () => {
+    state.dragging = false;
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!state.dragging || !state.running) return;
+    const rect = canvas.getBoundingClientRect();
+    state.player.x = clamp(e.clientX - rect.left, state.player.r, rect.width - state.player.r);
+  });
+
+  startBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', resetGame);
+  restartFromOverlayBtn.addEventListener('click', resetGame);
+  shareBtn.addEventListener('click', shareGame);
+
+  resizeCanvas();
+  updateScore();
+  showStartOverlay();
+  requestAnimationFrame(loop);
+})();
+</script>
