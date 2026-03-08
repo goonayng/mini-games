@@ -179,6 +179,27 @@
           max-width: 100%;
         }
       }
+
+      .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: rgba(20,20,20,0.95);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      opacity: 0;
+      pointer-events: none;
+      transition: all .25s ease;
+      border: 1px solid #333;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
     </style>
 
     <div class="game-wrap">
@@ -226,7 +247,8 @@
     </div>
   `;
 
-  const canvas = shadow.getElementById('gameCanvas');
+  const canvas = shadow.getElementById('gameCanvas');  
+  const toast = shadow.getElementById('toast');
   const ctx = canvas.getContext('2d');
   const scoreText = shadow.getElementById('scoreText');
   const restartBtn = shadow.getElementById('restartBtn');
@@ -251,6 +273,15 @@
     keys: new Set(),
     dragging: false
   };
+
+  function showToast(message) {
+  toast.innerHTML = message;
+  toast.classList.add('show');
+
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, 2000);
+  }
 
   function resizeCanvas() {
     const rect = canvasWrap.getBoundingClientRect();
@@ -426,7 +457,7 @@
       }
 
       await navigator.clipboard.writeText(shareText + ' ' + shareUrl);
-      alert('공유 문구와 링크를 복사했어.');
+      showToast('복사완료! <br>친구들에게도 이 게임을 알려줘!');
     } catch (error) {
       const temp = document.createElement('textarea');
       temp.value = shareText + ' ' + shareUrl;
@@ -434,7 +465,7 @@
       temp.select();
       document.execCommand('copy');
       document.body.removeChild(temp);
-      alert('공유 문구와 링크를 복사했어.');
+      showToast('복사완료! <br>친구들에게도 이 게임을 알려줘!');
     }
   }
 
